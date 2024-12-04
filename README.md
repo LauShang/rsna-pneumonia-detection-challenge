@@ -1,7 +1,7 @@
 # rsna-pneumonia-detection-challenge
 
 Estructura del proyecto
-.
+```
 ├── 1-Preprocesamiento.ipynb
 ├── 2-Train.ipynb
 ├── 3-CAM.ipynb
@@ -23,5 +23,6 @@ Estructura del proyecto
 │   └── my_model
 ├── requirements.txt
 └── utils.py
+```
 
 los datos se pueden obtener de https://www.kaggle.com/c/rsna-pneumonia-detection-challenge/data
