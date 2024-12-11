@@ -1,0 +1,327 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{titling}
+\usepackage[spanish]{babel} % Cambia "Table" por "Tabla"
+\usepackage{amsmath} % Para ecuaciones avanzadas
+\usepackage{amssymb} % Para símbolos matemáticos adicionales
+\usepackage{hyperref} % Para enlaces y referencias
+\usepackage{xcolor} % Para texto en color
+\usepackage{enumitem}
+
+\title{Clasificador de neumonías \\ \large Métodos Numéricos y Optimización}
+\author{Lauro Reyes \\ David Escudero \\ Ximena Paz }
+\date{December 2024}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+La neumonía es una infección pulmonar que inflama los sacos de aire en uno o ambos pulmones, lo que puede causar dificultad para respirar, fiebre, tos y fatiga. Es una de las principales causas de hospitalización y mortalidad en personas mayores, niños y pacientes con sistemas inmunológicos debilitados. \\
+
+Su diagnóstico temprano es crucial para iniciar un tratamiento adecuado y evitar complicaciones graves como insuficiencia respiratoria o sepsis.\\
+
+Utilizar redes neuronales y mapas de activación para detectar neumonía en radiografías puede acelerar el diagnóstico y reducir la dependencia exclusiva de expertos humanos. Esto es especialmente útil en áreas con recursos limitados o alta demanda de servicios médicos. Además, al identificar visualmente las regiones clave que influyen en las decisiones del modelo, se mejora la interpretabilidad, lo que da mayor confianza tanto a médicos como a pacientes en el uso de estas herramientas.\\
+
+Por lo anterior, entrenaremos un clasificador para predecir si una radiografía de un paciente muestra signos de neumonía o no, basado en el Desafío de Detección de Neumonía de la RSNA
+
+\section{Datos}
+
+En el artículo de Wang et al. [@Wang2017], se presenta la base de datos ChestX-ray8, que incluye benchmarks para la clasificación y localización de enfermedades torácicas comunes.\\
+
+Escala del Dataset:\\
+El ChestX-ray8 es una base de datos masiva que contiene 108,948 imágenes de rayos X en vista frontal de 32,717 pacientes únicos. Estas imágenes fueron recolectadas de sistemas de archivado y comunicación de imágenes (PACS) de un hospital, y abarcan un período desde 1992 hasta 2015. \\ \\
+Cada imagen está etiquetada con una o múltiples de ocho enfermedades comunes del tórax (Atelectasia, Cardiomegalia, Derrame, Infiltración, Masa, Nódulo, Neumonía y Neumotórax).\\ \\
+Etiquetado mediante Procesamiento de Lenguaje Natural (NLP):
+Las etiquetas de las enfermedades se extrajeron automáticamente de los informes radiológicos asociados a cada imagen usando técnicas de NLP. Esto permitió generar etiquetas débilmente supervisadas, es decir, etiquetas a nivel de imagen sin la necesidad de anotación manual exhaustiva, lo que sería impracticable a esta escala. \\ \\
+Herramientas de NLP como DNorm y MetaMap fueron usadas para identificar y normalizar los conceptos de enfermedades a partir de los informes. También se desarrollaron reglas personalizadas para manejar la negación e incertidumbre en las anotaciones.\\ \\
+
+\section{Preprocesamiento}
+
+Se realizan varias tareas críticas de preprocesamiento, este se refiere a una serie de pasos realizados para transformar las imágenes de rayos X originales y las etiquetas asociadas a un formato que pueda ser utilizado de manera eficiente por un modelo de aprendizaje profundo. Estos pasos son fundamentales porque los datos crudos, tal como están, no siempre son ideales para ser introducidos directamente en un modelo. \\ 
+
+Así se ven nuestros datos inicialmente
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{tabla1} % Ajusta el tamaño si es necesario
+    \label{tab:tabla1} % Identificador único para referenciar la tabla
+\end{table}
+
+El archivo csv contiene las etiquetas asociadas a las imágenes. Cada fila contiene un patientId, coordenadas para posibles consolidaciomes (si se detecta neumonía), y la variable Target, que indica si la imagen tiene o no signos de neumonía. \\ \\
+
+El Target es binario (1 = neumonía, 0 = no neumonía). Esta es la variable objetivo que el modelo aprenderá a predecir. \\ \\
+
+Como parte de la limpieza, se eliminan duplicados en las filas que contienen el mismo patientId. Esto es importante porque tener múltiples entradas para el mismo paciente podría causar problemas en el entrenamiento del modelo, como sesgo o sobreajuste.Cada paciente debe ser representado una única vez en el análisis, para evitar una ponderación excesiva de imágenes de un mismo paciente. \\ \\
+
+Continuamos con una exploración de las etiquetas 0 y 1. \\ \\
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{tabla2} % Ajusta el tamaño si es necesario
+    \label{tab:tabla1} % Identificador único para referenciar la tabla
+\end{table}
+
+Visualizamos la distribución de las etiquetas para identificar cualquier desbalance en los datos. Un fuerte desbalance, como un número desproporcionado de imágenes sin neumonía, puede afectar el desempeño del modelo y requerir estrategias como submuestreo o sobrepeso en la clase minoritaria. En este caso, podemos ver que contamos con gran cantidad de ceros en nuestros, lo que se debe tomar en cuenta para el análisis posterior. 
+
+\section{Procesamiento}
+
+Para manejar eficientemente nuestros datos, convertimos las imágenes de rayos X almacenadas en formato DICOM a matrices para representar así la intensidad de cada pixel. \\
+
+Posteriormente, calculamos la media y la desviación estándar general de los píxeles de todo el conjunto de datos con el propósito de normalización. La normalización asegura que las variaciones en brillo o contraste no afecten el rendimiento del modelo de manera injustificada \\
+
+Luego, las imágenes en matrices creadas se almacenan en dos carpetas separadas según su etiqueta binaria: \\
+
+0: Todas las radiografías que no muestran signos de neumonía. \\
+1: Todas las radiografías que muestran signos de neumonía \\
+
+Estandarizamos todas las imágenes utilizando el valor máximo de píxel en el conjunto de datos proporcionado, 255. Todas las imágenes se redimensionan a 224x224 asegurando así que los datos sean consistentes y compatibles con el modelo, mejorando el rendimiento y la eficiencia del entrenamiento.
+
+\subsection{Calcular Media y Desviación Estándar del Dataset}
+
+Para calcular la media y la desviación estándar del conjunto de datos, calculamos la suma de los valores de los píxeles, así como la suma de los valores de píxeles al cuadrado para cada sujeto. Esto permite calcular la media y la desviación estándar general sin mantener todo el conjunto de datos en memoria.
+
+\section*{Media}
+
+\[
+\mu = \frac{\text{sums}}{24000}
+\]
+
+Donde \texttt{sums} es la suma acumulada de los valores de píxeles de todas las imágenes de entrenamiento, y \texttt{24000} es el número total de imágenes en el conjunto de entrenamiento.
+
+\section*{Desviación Estándar}
+
+\[
+\sigma = \sqrt{\frac{\text{sums squared}}{24000} - \mu^2}
+\]
+
+Donde:
+\begin{itemize}
+    \item \texttt{sums squared} es la suma acumulada de los cuadrados de los valores de los píxeles.
+    \item \texttt{$\mu^2$} es el cuadrado de la media que ya se ha calculado.
+\end{itemize}
+
+La normalización es importante para asegurarse de que los valores de los píxeles estén en un rango que permita a las redes neuronales converger más rápido y con mayor precisión. Al normalizar, centramos los valores en torno a la media (0.49) y escalamos con la desviación estándar. \\
+
+Este paso asegura que las variaciones en brillo o contraste no afecten el rendimiento del modelo de manera injustificada, permitiendo que la red neuronal se concentre en las características importantes para el diagnóstico, como las consolidaciones pulmonares. \\ \\
+
+Así mismo, se esta utilizando el \textbf{80\%} de las imágenes se asignan al conjunto de entrenamiento (train) y el \textbf{20\%} restante al de validación (val). 
+
+\section{Modelo}
+
+Buscamos crear nuestro conjunto de datos. Podemos aprovechar DatasetFolder de torchvision: nos permite simplemente pasar un directorio raíz y devolver un objeto de conjunto de datos con acceso a todos los archivos dentro del directorio, utilizando el nombre del directorio como etiqueta de clase. \\ 
+
+Para esto, necesitamos definir una función de carga, \texttt{load\_file}, que especifique cómo se deben cargar los archivos. Esto es muy cómodo, ya que solo tenemos que cargar nuestros archivos previamente almacenados en formato numpy. \\ \\
+
+Además, necesitamos definir una lista de extensiones de archivo (en nuestro caso, solo "npy"). \\ \\
+
+Finalmente, podemos pasar una secuencia de transformaciones para la Aumentación de Datos y Normalización. \\
+
+Las técnicas de aumentación de datos son útiles porque mejoran la capacidad del modelo para generalizar a nuevos datos, haciéndolo más robusto y menos propenso al sobreajuste. Se utilizaron las sigueintes técnicas:
+
+\subsection*{RandomResizedCrops:}
+
+Recorta aleatoriamente una región de la imagen, luego la redimensiona al tamaño fijo (224x224).
+
+Las ventajas que obtenemos son:
+\begin{itemize}
+    \item Introduce variaciones en la posición del objeto dentro de la imagen, obligando al modelo a aprender características discriminativas generales, no solo de regiones específicas.
+    \item Simula escenarios reales donde el objeto puede no estar centrado en la imagen.
+\end{itemize}
+
+\subsection*{Rotaciones aleatorias (-5 a 5 grados):}
+
+Gira la imagen en un rango pequeño alrededor del eje central. \\
+
+Las ventajas que obtenemos son:
+\begin{itemize}
+    \item Introduce invariancia a pequeñas inclinaciones, que son comunes en datos del mundo real.
+    \item Permite al modelo reconocer correctamente objetos que no estén perfectamente alineados.
+\end{itemize}
+
+\subsection*{Traslación aleatoria (máximo 5\%)}
+
+Mueve la imagen ligeramente hacia los lados, arriba o abajo. \\
+
+Las ventajas que obtenemos son:
+\begin{itemize}
+    \item Simula desplazamientos en la posición del objeto dentro del encuadre.
+    \item Ayuda al modelo a ser robusto frente a pequeños desalineamientos.
+\end{itemize}
+
+\subsection*{Escalado aleatorio (0.9--1.1 del tamaño original):}
+
+Cambia el tamaño de la imagen dentro de un rango. \\
+
+Las ventajas que obtenemos son:
+\begin{itemize}
+    \item Simula cambios en la distancia entre la cámara y el objeto.
+    \item Ayuda al modelo a aprender que el tamaño absoluto del objeto no siempre es relevante, sino sus características.
+\end{itemize}
+
+Estos son algunos ejemplos de como se ven las imágenes aplicando las técnicas anteriormente mencionadas:
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{tabla3} % Ajusta el tamaño si es necesario
+    \label{tab:tabla3} % Identificador único para referenciar la tabla
+\end{table}
+
+\subsection{Parámetros del modelo}
+
+Cada modelo en PyTorch Lightning se define al menos por un método de inicialización, una función \texttt{forward} que define el paso hacia adelante/predicción, un \texttt{training\_step} que calcula la pérdida, y \texttt{configure\_optimizers} para especificar el algoritmo de optimización. \\
+
+Además, podemos usar un callback \texttt{training\_epoch\_end} para calcular estadísticas y métricas generales del conjunto de datos, como la precisión. \\
+
+Posteriormente, definimos el \texttt{validation\_step}. El paso de validación realiza prácticamente los mismos pasos que el paso de entrenamiento, pero en los datos de validación. En este caso, PyTorch Lightning no actualiza los pesos. Nuevamente, podemos usar \texttt{validation\_epoch\_end} para calcular las métricas generales del conjunto de datos. \\
+
+No se necesitan bucles ni actualizaciones manuales de los pesos \\
+
+Además, PyTorch Lightning también maneja la gestión de dispositivos. Solo es necesario pasar el número de GPUs al crear el entrenador. \\
+
+Usaremos la arquitectura de la red ResNet18 que está adaptado para las imágenes de escala de grisesy con salidad binarias. \\
+
+Como la mayoría de los modelos de \texttt{torchvision}, la ResNet original espera una entrada de tres canales en \texttt{conv1}. Sin embargo, nuestros datos de imágenes de rayos X tienen solo un canal al ser en escala de grises. Por lo tanto, necesitamos cambiar el parámetro \texttt{in\_channel} de 3 a 1. \\
+
+Además, cambiaremos la última capa totalmente conectada para que tenga solo una salida, ya que tenemos una etiqueta de clase binaria. \\
+
+\subsection{Optimizador y Función de Pérdida}
+
+Usamos el optimizador Adam con una tasa de aprendizaje de 0.0001 y la función de pérdida BinaryCrossEntropy. \\
+
+De hecho, usamos BCEWithLogitsLoss, que acepta directamente los valores predichos sin procesar y calcula la función de activación sigmoide antes de aplicar la Entropía Cruzada. Esto nos sirve también para considerar el desbalance que mencionamos al inicio entre las clases. \\
+
+Adicional a lo anterior, agregamos un callback para puntos de control (\textit{checkpoint}) que solo guarda los 10 mejores modelos basándose en la precisión de validación. Este mecanismo permite conservar únicamente las versiones más prometedoras del modelo durante el entrenamiento, optimizando el uso de espacio en disco y facilitando la selección del mejor modelo para su evaluación final. Además, este enfoque asegura que los modelos almacenados reflejen un desempeño robusto en los datos de validación, minimizando el riesgo de sobreajuste. \\
+
+El modelo fue entrenado durante 35 épocas, lo cual permitió observar una convergencia adecuada de la pérdida y las métricas de validación. Este número de épocas fue seleccionado para asegurar que el modelo tuviera suficiente tiempo para aprender patrones relevantes de los datos, evitando un entrenamiento insuficiente o un sobreajuste.
+
+\section{Evaluación}
+
+El proceso de evaluación comienza cargando el modelo entrenado desde el último punto de control (\textit{checkpoint}), asegurando que se evalúe la versión más precisa del modelo según la métrica de validación. El modelo se transfiere al dispositivo disponible, ya sea GPU o CPU, optimizando los recursos computacionales para acelerar la evaluación. \\
+
+Una vez cargado, el modelo se configura en modo evaluación (\texttt{model.eval()}), desactivando mecanismos como \textit{dropout} y normalización por lotes para garantizar que las predicciones sean deterministas y no se vean afectadas por aleatoriedad. Posteriormente, se generan las predicciones para todo el conjunto de datos de validación, calculando métricas clave sin actualizar los pesos del modelo, ya que este proceso es exclusivamente para medir el rendimiento. \\
+
+Finalmente, las predicciones y las etiquetas reales se almacenan, permitiendo un análisis más detallado del rendimiento, como el cálculo de métricas de validación (precisión, sensibilidad, etc.). Este flujo asegura una evaluación robusta y consistente del modelo, basada en datos que no se han utilizado durante el entrenamiento. \\
+
+\subsection{Primera capa convolucional}
+Los filtros aplicados en la primera capa convolucional del modelo se ven de la siguiente manera:
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{tabla4} % Ajusta el tamaño si es necesario
+    \label{tab:tabla4} % Identificador único para referenciar la tabla
+\end{table}
+
+Cada cuadro representa un filtro aprendido durante el entrenamiento. Estos filtros capturan patrones básicos como bordes, gradientes y cambios de intensidad en distintas orientaciones, fundamentales para las primeras etapas de procesamiento en redes convolucionales. \\ \\
+
+Se observa una diversidad en los patrones aprendidos, lo que indica que el modelo está identificando características variadas en los datos de entrada. Algunos filtros son más oscuros o claros, reflejando diferentes sensibilidades a los niveles de intensidad de los píxeles. Dado que las imágenes de entrada son en escala de grises, estos filtros trabajan exclusivamente con cambios de intensidad, siendo particularmente relevantes para datos como rayos X. \\
+
+En general, estos filtros actúan como detectores básicos que procesan las características más simples de las imágenes. La diversidad observada sugiere que el modelo está aprendiendo representaciones significativas y variadas, necesarias para construir características más complejas en capas posteriores.
+
+\subsection{Mejoras al modelo}
+
+Obtuvimos un resultado general decente con nuestro modelo simple.
+Sin embargo, sufrimos de una gran cantidad de falsos negativos debido al desequilibrio de los datos. \\
+
+Como alternativa, se redució el umbral de clasificación de 0.5 a 0.25. Esto produce muchos menos falsos negativos, pero aumenta el número de falsos positivos. 
+Esto se llama el compromiso entre precisión y sensibilidad (precision-recall tradeoff).\\
+
+Finalmente se obtuvieron los siguientes resultados:
+
+\begin{itemize}
+    \item \textbf{Val Accuracy:} 0.8506
+    \item \textbf{Val Precision:} 0.7217
+    \item \textbf{Val Recall:} 0.5488
+\end{itemize}
+
+En general, el modelo muestra un buen equilibrio entre precisión y exactitud, destacando una capacidad sólida para evitar falsos positivos (precision). Sin embargo, el valor más bajo en recall indica que podría mejorar en la detección de casos positivos reales. Dependiendo del objetivo, sería clave decidir si priorizar más precisión o cobertura. \\
+
+La matriz de confusión se ve de la siguiente manera:
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{tabla5} % Ajusta el tamaño si es necesario
+    \label{tab:tabla5} % Identificador único para referenciar la tabla
+\end{table}
+
+\begin{itemize}
+    \item \textbf{Thereshold=0.50):}
+    \begin{itemize}
+        \item \textbf{1951 Verdaderos Negativos:} Predicciones correctas para la clase negativa.
+        \item \textbf{332 Verdaderos Positivos:} Predicciones correctas para la clase positiva.
+        \item \textbf{128 Falsos Positivos:} Casos negativos predichos como positivos.
+        \item \textbf{273 Falsos Negativos:} Casos positivos no identificados.
+    \end{itemize}
+    El modelo tiene alta precisión para la clase negativa, pero omite algunos casos positivos (FN).
+
+    \item \textbf{Threshold=0.25:}
+    \begin{itemize}
+        \item \textbf{1688 Verdaderos Negativos:} Menor precisión en negativos.
+        \item \textbf{482 Verdaderos Positivos:} Mejora en la detección de positivos.
+        \item \textbf{391 Falsos Positivos:} Más predicciones incorrectas para positivos.
+        \item \textbf{123 Falsos Negativos:} Menos casos positivos ignorados.
+    \end{itemize}
+\end{itemize}
+
+Vemos que al reducir el umbral, el modelo mejora el recall (más positivos detectados), pero compromete la precisión al incluir más falsos positivos. En este caso médico, es importante evaluar las implicaciones que esto tiene y de algún modo, que escenario es de mayor utilidd.
+
+\subsection{Falsos negativos y falsos positivos}
+
+Algunas imágenes que fueron mal clasificadas como falsos negativos:
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.6\textwidth]{tabla6} % Ajusta el tamaño si es necesario
+    \label{tab:tabla6} % Identificador único para referenciar la tabla
+\end{table}
+
+Algunos ejemplos de las imágenes mal clasificadas como falsos positivos:
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.6\textwidth]{tabla7} % Ajusta el tamaño si es necesario
+    \label{tab:tabla7} % Identificador único para referenciar la tabla
+\end{table}
+
+Los errores en la clasificación podrían deberse a inconsistencias en la calidad de las imágenes, como variaciones en la iluminación, sombras o artefactos externos, como marcas o bordes de equipos médicos. Estas características irrelevantes pueden distraer al modelo y hacerlo enfocarse en patrones que no están relacionados con los aspectos médicos reales. Esto indica que el modelo puede estar más influenciado por el ruido visual que por las señales relevantes, lo que afecta su capacidad para generalizar correctamente entre las clases.\\
+
+\section{Mapas de Activación de Clases (CAM)}
+
+Una vez obtenido el modelo ResNet18 se usa la última capa del modelo para generar mapas de características. (Feature Maps) que son representaciones intermedias generadas por una red neuronal al procesar una imagen. \\
+
+Muestra que partes de la imagen activin ciertos filtros como bordes, texturas, regiones importantes.\\
+
+Estos mapas se combinan con los pesos de la última capa para crear el mapa de activación. (CAM). El CAM se redimensiona para coincidir con el tamaño de la imagen originally así tener un mapa de calor que resalte regiones importantes. \\
+
+Así, se realiza la Predicción de numonía y el mapa de calor muestra las regiones relevantes para el modelo. \\ 
+
+El mapa se ve de la siguiente manera:
+
+\begin{table}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{tabla8} % Ajusta el tamaño si es necesario
+    \label{tab:tabla8} % Identificador único para referenciar la tabla
+\end{table}
+
+Podemos observar como mapa de calor se enfoca en el área que muestra signos de neumonía.
+
+\section{Conclusiones}
+
+El procentaje de errores de acuerdo al umbral 0.25 es aproximadamente 19.15\% esto incluye falso positivos y falsos negativos. \\
+
+¿Es una tasa alta?\\
+Considerando que hablamos de enfermedades, estos errores pueden implicar graves consecuencias, solo por mencionar algunas:
+
+\begin{itemize}
+    \item \textbf{Falso positivo:} Consecuencias emocionales, al generar ansiedad y preocupación, gastos adicionales por los estudios y medicamentos, e incluso riesgos médicos si es que se expuso a tratamientos.
+    \item \textbf{Falso negativo:} Esto puede llevar a un retraso en el tratamiento adecuado, lo que puede agravar la enfermedad y ser potencialmente mortal si no se detecta y trata a tiempo.
+\end{itemize}
+
+En personas mayores de 60 años, no detectar la neumonía a tiempo es grave porque su sistema inmunológico está debilitado, lo que las hace más vulnerables a infecciones severas. Además, suelen tener enfermedades crónicas como diabetes o problemas cardíacos, que aumentan el riesgo de complicaciones como insuficiencia respiratoria, sepsis o acumulación de líquido en los pulmones. La recuperación en esta población es más lenta, y las consecuencias pueden ser fatales si no se inicia el tratamiento rápidamente. Por ello, el diagnóstico temprano es fundamental.
+
+\section{Próximos pasos}
+
+
+
+\end{document}
