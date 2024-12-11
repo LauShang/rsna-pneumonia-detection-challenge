@@ -1,0 +1,54 @@
+---
+title: "Reporte final Métodos Numericos"
+author: "Lauro Reyes, David Escudero Garcia, Ximena Paz"
+date: "2023-10-05"
+format: pdf
+---
+
+# Introducción
+
+Este reporte describe los métodos utilizados para la clasificación de neumonía en imágenes médicas.
+# Metodología
+
+En esta sección se detallan los métodos utilizados para la clasificación de neumonía.
+
+## Preprocesamiento de Datos
+
+Describa aquí el preprocesamiento de los datos.
+
+## Modelos Utilizados
+
+Describa aquí los modelos utilizados.
+
+## Evaluación
+
+Describa aquí cómo se evaluaron los modelos.
+
+# Resultados
+
+En esta sección se presentan los resultados obtenidos.
+
+## Métricas de Evaluación
+
+Describa aquí las métricas de evaluación utilizadas.
+
+## Resultados Obtenidos
+
+Describa aquí los resultados obtenidos.
+
+# Conclusiones
+
+En esta sección se presentan las conclusiones del estudio.
+
+## Trabajo Futuro
+
+Describa aquí posibles trabajos futuros.
+
+---
+
+format:
+    html: default
+    pdf:
+        documentclass: article
+        geometry: margin=1in
+        keep_tex: true
