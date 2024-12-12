@@ -1,0 +1,173 @@
+---
+title: "Pneumonia Classification Report"
+author: 
+  - "Lauro Reyes - 214532"
+  - "Ximena Paz"
+  - "David Escudero"
+date: "2024-12-11"
+format: html
+---
+
+# Introducción
+## Estandar DICOM
+
+En el campo de la medicina, el estándar DICOM (*Digital Imaging and Communications in Medicine*) es el formato internacionalmente reconocido para el almacenamiento y comunicación de imágenes médicas. Este formato no solo contiene las imágenes, sino también metadatos esenciales para su interpretación clínica, como información del paciente (edad, género), detalles del procedimiento (modalidad, dispositivo) y características de las imágenes (forma, grosor de corte, entre otros). Esta estandarización permite la interoperabilidad entre dispositivos médicos, facilitando el flujo de trabajo en entornos clínicos como hospitales.
+
+-----
+TABLA METADATOS
+------
+
+Un archivo DICOM contiene:
+- El encabezado (header), conteniendo toda la información descriptiva.
+- El cuerpo (body) contiene los datos de la imagen, ya sea una sola proyección o una serie de cortes en volúmenes tridimensionales.
+
+Sin embargo, trabajar directamente con archivos DICOM puede ser desafiante debido a su complejidad. Por ejemplo, un único estudio tridimensional puede estar dividido en múltiples archivos DICOM, representando cada uno un corte bidimensional. Además, los hospitales suelen implementar adaptaciones específicas en los encabezados mediante “etiquetas privadas”, lo que complica la interoperabilidad. Por estas razones, es común convertir los archivos DICOM a formatos más manejables como NIfTI, especialmente en contextos de investigación y desarrollo.
+
+> En este proyecto, se emplean imágenes de rayos X en formato DICOM para entrenar un modelo basado en redes neuronales convolucionales (CNN), adaptado para predecir la probabilidad de neumonía. Además, se integran técnicas de interpretación como Class Activation Maps (CAM), que permiten identificar las regiones de las imágenes más relevantes para las predicciones del modelo. Esto no solo mejora la transparencia del sistema, sino que también facilita el análisis y refinamiento del modelo.
+
+## Neumonia
+
+La neumonía es una de las principales causas de atención hospitalaria en México y en el mundo, afectando principalmente a niños pequeños, adultos mayores y personas con enfermedades crónicas. 
+
+En nuestro país, según el Instituto Nacional de Salud Pública, se diagnosticaron más de 127 mil casos nuevos de neumonía y bronconeumonía en 2021, y en 2020 más de 57 mil personas fallecieron a causa de neumonía e influenza.
+
+La detección oportuna y un tratamiento adecuado pueden marcar la diferencia entre la recuperación y las complicaciones. Sin embargo, en muchos casos, determinar la severidad y la necesidad de hospitalización sigue siendo un desafío clínico significativo.
+
+Las técnicas de imagen que se emplean habitualmente en la valoración de las neumonías son la radiología simple de tórax y la tomografía computarizada (TC). La radiografía simple de tórax es la primera prueba de imagen y, en la mayor parte de los pacientes, la única que hay que realizar en un paciente con sospecha de infección pulmonar.
+
+Aunque hay tendencia a que algunos microorganismos se presenten con un determinado patrón radiológico, la presentación radiológica en muchas ocasiones es inespecífica y un mismo patrón puede estar producido
+por múltiples gérmenes, y viceversa: un mismo patógeno puede presentar una apariencia múltiple.
+
+Los patrones radiológicos de las infecciones pulmonares en radiología simple se han dividido generalmente en tres grupos:
+
+a)**Patrón lobar**: la infección pulmonar afecta de manera focal al pulmón en forma de inflamación exudativa que provoca consolidación de todo el pulmón afecto, que puede ser, según su extensión, subsegmentaria, segmentaria, lobar o multilobar
+
+b) **Patrón bronconeumónico**: la afectación consiste en una inflamación exudativa con distribución peribronquiolar que da lugar a focos de consolidación del pulmón adyacente, rodeados de pulmón normal.
+
+c) **Patrón intersticial**: la afectación inflamatoria afecta al espacio aéreo e intersticio peribronquiolar y perivascular.
+
+## Vision por computadora
+
+Los filtros de imagen son herramientas que modifican una imagen para lograr ciertos efectos, como resaltar bordes o suavizar los detalles.
+
+Estos filtros son como pequeñas reglas matemáticas que aplicamos a cada punto de una imagen. En lugar de aplicarlos a mano, usamos una matriz de números (que llamamos núcleo de imagen) para hacer esto automáticamente.
+
+----
+IMAGEN FILTROS
+---
+
+
+¿Cómo funcionan los filtros?
+
+Imagina que tienes una radiografía y quieres resaltar áreas importantes, como los bordes de los pulmones. Un filtro puede ayudarnos a hacer esto aplicando su matriz de números a cada parte de la imagen. Este proceso se llama convolución.
+
+Cuando aplicamos un filtro a una imagen, básicamente:
+
+Multiplicamos los valores de los píxeles en la imagen por los valores del filtro (que llamamos pesos).
+Luego sumamos esos valores multiplicados para obtener un nuevo valor para cada parte de la imagen.
+Este proceso se repite en toda la imagen, permitiendo que se transforme de manera útil. Por ejemplo, podemos desenfocar una radiografía o encontrar bordes importantes en una tomografía.
+
+# Data Description
+
+En el artículo de Wang et al. (Wang et al. 2017), se presenta la base de datos ChestX-ray8, que incluye benchmarks para la clasificación y localización de enfermedades torácicas comunes.
+
+Primero, descargamos los datos de Kaggle
+
+Fuente Original: https://nihcc.app.box.com/v/ChestXray-NIHCC
+
+El ChestX-ray8 es una base de datos que contiene 108,948 imágenes de rayos X en vista frontal de 32,717 pacientes únicos. Estas imágenes fueron recolectadas de sistemas de archivado y comunicación de imágenes (PACS) de un hospital, y abarcan un período desde 1992 hasta 2015.
+Cada imagen está etiquetada con una o múltiples de ocho enfermedades comunes del tórax (Atelectasia, Cardiomegalia, Derrame, Infiltración, Masa, Nódulo, Neumonía y Neumotórax).
+
+Las etiquetas de las enfermedades se extrajeron automáticamente de los informes radiológicos asociados a cada imagen usando técnicas de NLP. Esto permitió generar etiquetas débilmente supervisadas, es decir, etiquetas a nivel de imagen sin la necesidad de anotación manual exhaustiva, lo que sería impracticable a esta escala.
+
+## Preprocesamiento
+
+Para manejar eficientemente nuestros datos , convertimos las imágenes de rayos X almacenadas en formato DICOM a matrices.
+
+Posteriormente, calculamos la media y la desviación estándar general de los píxeles de todo el conjunto de datos con el propósito de normalización.
+
+Luego, las imágenes en matrices creadas se almacenan en dos carpetas separadas según su etiqueta binaria: 
+
+- $0$: Todas las radiografías que no muestran signos de neumonía
+- $1$: Todas las radiografías que muestran signos de neumonía
+
+Estandarizamos todas las imágenes utilizando el valor máximo de píxel en el conjunto de datos proporcionado, 255. Todas las imágenes se redimensionan a 224x224.
+
+Para calcular la media y la desviación estándar del conjunto de datos, calculamos la suma de los valores de los píxeles, así como la suma de los valores de píxeles al cuadrado para cada sujeto. Esto permite calcular la media y la desviación estándar general sin mantener todo el conjunto de datos en memoria
+
+# Metodos
+
+## Data Augmentation 
+
+El aumento de datos nos permite aumentar artificialmente el tamaño de nuestro conjunto de datos aplicando diversas transformaciones a las imágenes existentes. 
+
+En este proyecto, utilizamos las siguientes transformaciones:
+-  `RandomResizedCrop`: Realiza un recorte aleatorio de la imagen y luego la redimensiona al tamaño original. Esto introduce variaciones en la escala y la posición de los objetos en la imagen.
+
+- `RandomAffine`: Aplica una combinación de transformaciones afines, como rotaciones, traslaciones y escalados, a la imagen. 
+
+- `RandomHorizontalFlip`: Voltea la imagen horizontalmente con una probabilidad del 50%. Esto ayuda al modelo a ser invariante a la orientación izquierda-derecha de los objetos en la imagen.
+
+----
+IMAGENES Data augmentation
+----
+
+## Modelo
+
+
+En este proyecto, se ha optado por utilizar una Red Neuronal Convolucional (CNN) con la arquitectura ResNet50 como base. 
+
+- ResNet50 es una red profunda con 50 capas, lo que le otorga un alto poder de representación para aprender características complejas en las imágenes de rayos X. 
+
+- Conexiones Residuales: La característica distintiva de ResNet es la incorporación de conexiones residuales o "shortcuts". Estas conexiones permiten que el flujo de información salte capas, facilitando el entrenamiento de redes muy profundas y mitigando el problema de la degradación del gradiente. Uuna conexión residual se puede expresar como:
+
+	$$y = F(x) + x$$
+
+  donde $x$ es la entrada a la capa, $F(x)$ es la función aprendida por la capa, e $y$ es la salida.  Al sumar la entrada $x$ a la salida de la capa, se facilita el aprendizaje de funciones residuales, es decir, la diferencia entre la entrada y la salida deseada.
+
+- ResNet50 ha sido pre-entrenado en ImageNet, un conjunto de datos masivo con millones de imágenes.  Este pre-entrenamiento permite que el modelo comience con un conjunto de pesos que ya han aprendido características generales de las imágenes, como bordes, texturas y patrones.  
+
+- Adaptación a Rayos X modificando la primera capa convolucional (`conv1`) para que acepte un solo canal de entrada en lugar de tres.
+
+- La capa final del modelo (`fc`) es una capa fully connected con una sola neurona de salida.  Esta neurona produce un valor (logit) que se pasa a una función sigmoide para obtener la probabilidad de que la imagen corresponda a un caso de neumonía.
+
+- Manejo del Desequilibrio de Clases: Se utiliza la función de pérdida `BCEWithLogitsLoss` con un parámetro `pos_weight` para abordar el desequilibrio de clases en el conjunto de datos.  Este parámetro permite asignar un peso mayor a las muestras de la clase minoritaria (neumonía), lo que ayuda a equilibrar la contribución de ambas clases al entrenamiento.
+
+- Regularización:  Se ha incorporado dropout a la capa fully connected para prevenir el sobreajuste.  Dropout desactiva aleatoriamente neuronas durante el entrenamiento, lo que obliga al modelo a aprender representaciones más robustas y menos dependientes de neuronas individuales.
+
+- Optimización:  Se utiliza el optimizador Adam para ajustar los pesos del modelo durante el entrenamiento.  Adam es un algoritmo de optimización adaptativo que ajusta automáticamente la tasa de aprendizaje para cada parámetro.
+
+
+
+
+# Results
+
+El desempeño del modelo se evaluó en términos de métricas de clasificación clave y el análisis de la matriz de confusión. A continuación, se presentan los resultados obtenidos en el conjunto de validación:
+
+**Métricas principales**
+
+* _Exactitud (Accuracy):_
+  El modelo logró una exactitud de 85.06%, lo que indica que clasifica correctamente la mayoría de las imágenes. Sin embargo, la exactitud por sí sola puede ser insuficiente para evaluar el desempeño en problemas con clases desbalanceadas.
+
+* _Precisión (Precision):_
+  La precisión del modelo fue de 72.17%, lo que refleja su capacidad para minimizar los falsos positivos al clasificar imágenes como casos de neumonía.
+
+* _Sensibilidad o Recall:_
+  El modelo obtuvo un recall de 54.88%, lo que indica que identifica correctamente poco más de la mitad de los casos positivos (neumonía). Esto puede ser una limitación significativa en contextos médicos, donde los falsos negativos tienen un alto costo.
+
+Se calculó la matriz de confusión para evaluar la distribución de predicciones correctas e incorrectas y se evaluó los resultados con dos configuraciones: el umbral predeterminado y un umbral ajustado de 0.25
+Al disminuir el umbral de clasificación, el modelo aumenta su sensibilidad a los casos positivos, reduciendo los falsos negativos (de 273 a 123) a expensas de un mayor número de falsos positivos (de 128 a 391). Esto refleja un balance esperado entre precisión y recall al modificar el umbral.
+
+![Confusión Matrix](img/matrix.png)
+
+# Discussion
+
+Discuss the implications of your results and any potential limitations.
+
+# Conclusion
+
+Summarize the key findings and suggest future work.
+
+# References
+
+List any references or sources used in your report.
